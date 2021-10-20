@@ -48,9 +48,14 @@ boolean needReset = false;
 #include "ADAU1701.h"
 ADAU1701 adau;
 
+char serial2Buf[128] = {0};
+uint8_t serial2BufPtr = 0;
+void handleSerial2Line();
+
 void setup()
 {
   Serial.begin(115200);
+  Serial2.begin(115200);
 
   if (!SPIFFS.begin(true))
   {
@@ -166,6 +171,31 @@ void loop()
     ESP.restart();
   }
 
+  while (Serial2.available())
+  {
+    char ch;
+    int nBytes;
+    nBytes = Serial2.read(&ch, 1);
+    if (nBytes > 0)
+    {
+      if (ch == '\n')
+      {
+        serial2Buf[serial2BufPtr] = '\0';
+        handleSerial2Line();
+        serial2BufPtr = 0;
+      }
+      else if (ch != '\r')
+      {
+        serial2Buf[serial2BufPtr++] = ch;
+        if (serial2BufPtr >= sizeof(serial2Buf))
+        {
+          // buffer overflow
+          serial2BufPtr = 0;
+        }
+      }
+    }
+  }
+
   // Serial.print("Configuring ADAU1701...");
   // default_download_IC_1();
   // Serial.println(" done!");
@@ -181,6 +211,63 @@ void wifiConnected()
   ArduinoOTA.begin();
 
   isWifiConnected = true;
+}
+
+void handleSerial2Line()
+{
+  char buf[32];
+  if (strncmp(serial2Buf, "VOL = ", 6) == 0)
+  {
+    int16_t volume;
+    if (sscanf(serial2Buf + 6, "%hi", &volume) == 1)
+    {
+      // macOS volume adjustment: sqrt( linear 0..1 )
+      uint32_t volumePositive = volume + 24576;
+      uint32_t volumeScaled = volumePositive * volumePositive / 72; // 24576^2 / 0x00800000 = 72
+      Serial.printf("Volume: %i -> %u (0x%08X)\n", volume, volumeScaled, volumeScaled);
+      adau.setMasterVolume(volumeScaled);
+      if (isWifiConnected)
+      {
+        snprintf(buf, sizeof(buf) - 1, "{\"volume\": %u}", volumeScaled);
+        webSocket.broadcastTXT(buf);
+      }
+    }
+  }
+  else if (strncmp(serial2Buf, "MUTE = ", 7) == 0)
+  {
+    uint8_t muteNum;
+    boolean mute;
+    if (sscanf(serial2Buf + 7, "%hhu", &muteNum) == 1)
+    {
+      mute = muteNum == 1;
+      Serial.printf("Mute: %i\n", mute);
+      if (isWifiConnected)
+      {
+        snprintf(buf, sizeof(buf) - 1, "{\"mute\": %u}", mute);
+        webSocket.broadcastTXT(buf);
+      }
+    }
+  }
+  else if (strncmp(serial2Buf, "PLAY = ", 7) == 0)
+  {
+    uint8_t playNum;
+    boolean play;
+    if (sscanf(serial2Buf + 7, "%hhu", &playNum) == 1)
+    {
+      play = playNum == 1;
+      Serial.printf("Play: %i\n", play);
+      if (isWifiConnected)
+      {
+        snprintf(buf, sizeof(buf) - 1, "{\"play\": %u}", play);
+        webSocket.broadcastTXT(buf);
+      }
+    }
+  }
+  else
+  {
+    Serial.print("Serial2: ");
+    Serial.println(serial2Buf);
+  }
 }
 
 void handleRoot()
@@ -208,7 +295,7 @@ void handleGetValues()
   // serializeJson(jsonDoc, valuesStr);
   // server.send(200, "application/json", valuesStr);
   if (!adau.loadValues())
-    Serial.println("pååppa");
+    Serial.println("adau.loadValues() fail");
   server.send(200, "application/json", adau.valuesJSON());
 }
 
@@ -267,16 +354,15 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
   }
   break;
   case WStype_TEXT:
-    Serial.printf("[%u] get Text: %s\n", num, payload);
+    Serial.printf("WS[%u] text: %s\n", num, payload);
 
     if (strncmp((const char *)payload, "slider: ", 8) == 0)
     {
       uint32_t value;
       if (sscanf((const char *)(payload + 8), "%u", &value) == 1)
       {
-        uint32_t mapped = map(value, 0, 100, 0, 0x00800000);
-        Serial.printf("slider value: %u -> %08x\n", value, mapped);
-        adau.setMasterVolume(mapped);
+        Serial.printf("slider value: %u -> %08x\n", value, value);
+        adau.setMasterVolume(value);
       }
     }
 
@@ -287,20 +373,17 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
     // webSocket.broadcastTXT("message here");
     break;
   case WStype_BIN:
-    Serial.printf("[%u] get binary length: %u\n", num, length);
+    Serial.printf("WS[%u] binary (%u)\n", num, length);
     hexdump(payload, length);
 
     // send message to client
     // webSocket.sendBIN(num, payload, length);
     break;
   case WStype_PING:
-    Serial.println("ws ping");
-    break;
-  case WStype_PONG:
-    Serial.println("ws pong");
-    Serial.printf("[%u] pong length: %u\n", num, length);
+    Serial.printf("WS[%u] ping (%u)\n", num, length);
     hexdump(payload, length);
     break;
+  case WStype_PONG:
   case WStype_ERROR:
     Serial.println("ws error");
     break;
@@ -311,58 +394,3 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
     break;
   }
 }
-
-/*
-  char buf[256] = {0};
-
-  size_t n;
-  uint8_t status;
-
-  // mute
-  uint8_t mute[2] = {0x00, 0x18};
-  Wire.beginTransmission(ADAU1701_ADDR);
-  n = Wire.write(mute, 2);
-  status = Wire.endTransmission();
-  sprintf(buf, "mute - len: %u, status: %u\n", n, status);
-  Serial.print(buf);
-
-  // program data
-
-  // param
-
-  // hw config
-  uint8_t hw_conf[24] = {
-      0x00, 0x18,       // dsp core (mute)
-      0x08,             // reserved
-      0x00, 0x00,       // serial output
-      0x00,             // serial input
-      0x44, 0xFF, 0x44, // mp pin config 0
-      // mp5: gpio in debounce
-      // mp4: gpio in debounce
-      // mp3: aux adc
-      // mp2: aux adc
-      // mp1: gpio in debounce
-      // mp0: gpio in debounce
-      0xCC, 0xFF, 0x4C, // mp pin config 1
-      // mp11: serial port inverted
-      // mp10: serial port inverted
-      // mp9: aux adc
-      // mp8: aux adc
-      // mp7: gpio in debounce
-      // mp6: serial port inverted
-      0x00, 0x00, // aux adc & power
-      0x00, 0x00, // reserved
-      0x80, 0x00, // aux adc en (enable)
-      0x00, 0x00, // reserved
-      0x00, 0x00, // osc pwr-dn
-      0x00, 0x01  // dac setup (initialize)
-  };
-
-  // mute + clear registers
-  uint8_t mute_cr[2] = {0x00, 0x1C};
-  Wire.beginTransmission(ADAU1701_ADDR);
-  n = Wire.write(mute_cr, 2);
-  status = Wire.endTransmission();
-  sprintf(buf, "mute_cr - len: %u, status: %u\n", n, status);
-  Serial.print(buf);
-  */

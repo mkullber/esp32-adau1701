@@ -21,15 +21,16 @@
                     <form class="col s12">
                         <div class="row">
                             <div class="input-field col s12">
-                                <label for="slider">Slider</label><br />
+                                <label for="masterVolume">Master volume</label><br />
                                 <p class="range-field">
                                     <input
                                         type="range"
-                                        id="slider"
+                                        id="masterVolume"
                                         min="0"
                                         max="100"
-                                        value="69"
-                                        class="update_slider"
+                                        value="0"
+                                        class="update_masterVolume"
+                                        disabled
                                     />
                                 </p>
                             </div>
@@ -42,6 +43,10 @@
                         <a class="btn waves-effect waves-light nappi blue" name="action" data-mode="off"
                             >Nappi
                             <i class="material-icons right">done</i>
+                            <!--
+                            <i class="material-icons right">volume_up</i>
+                            <i class="material-icons right">volume_off</i>
+                            -->
                         </a>
                     </div>
                 </div>
@@ -53,7 +58,8 @@
         <script type="text/javascript">
             (function ($) {
                 $(function () {
-                    var host = window.location.hostname;
+                    //var host = window.location.hostname;
+                    var host = "192.168.8.187";
                     var ws_url = "ws://" + host + ":81";
                     var connection;
                     var ws_waiting = 0;
@@ -73,17 +79,31 @@
                         connection.onmessage = function (e) {
                             console.log("WebSocket from server: " + e.data);
                             ws_waiting = 0;
+                            var obj = null;
+                            try {
+                                obj = JSON.parse(e.data);
+                            } catch (err) {}
+                            if (obj) {
+                                // console.log(obj);
+                                if (obj.volume !== undefined) {
+                                    var volume = parseInt((obj.volume * 100) / 0x00800000);
+                                    $("#masterVolume").val(volume);
+                                    $("#masterVolume").prop("disabled", false);
+                                }
+                            }
                         };
 
-                        $.getJSON("http://" + host + "/get_values", function (data) {
-                            console.log("get_values", data);
+                        $.getJSON("http://" + host + "/get_values", function (obj) {
+                            console.log("get_values", obj);
+                            var volume = parseInt((obj.masterVolume1 * 100) / 0x00800000);
+                            $("#masterVolume").val(volume);
                         });
                     }
 
-                    $("#pane1").on("input", ".update_slider", function () {
-                        var value = $("#slider").val();
+                    $("#pane1").on("input", ".update_masterVolume", function () {
+                        var value = $("#masterVolume").val();
 
-                        wsSendCommand("slider: " + value);
+                        wsSendCommand("masterVolume: " + parseInt((value * 0x00800000) / 100));
                     });
 
                     $("#pane1").on("click", ".nappi", function () {
