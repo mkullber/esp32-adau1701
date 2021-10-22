@@ -94,6 +94,23 @@ void setup()
                         iotWebConf.handleNotFound();
                     });
 
+  server.on("/is_connected", []
+            {
+              server.sendHeader("Access-Control-Allow-Origin", "*");
+              server.send(200, "application/json", adau.isConnectedJSON());
+            });
+  server.on("/connect", []
+            {
+              adau.connect();
+              server.sendHeader("Access-Control-Allow-Origin", "*");
+              server.send(200, "application/json", adau.isConnectedJSON());
+            });
+  server.on("/disconnect", []
+            {
+              adau.disconnect();
+              server.sendHeader("Access-Control-Allow-Origin", "*");
+              server.send(200, "application/json", adau.isConnectedJSON());
+            });
   server.on("/get_values", handleGetValues);
 
   server.on("/list", handleFileList);

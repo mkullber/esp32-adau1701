@@ -1,7 +1,7 @@
 #include "ADAU1701.h"
 
-#include "APM2_PCUICtrl_IC_1_PARAM.h"
-#include "APM2_PCUICtrl_IC_1_REG.h"
+#include "sigmastudio system files/teh_DSP_IC_1_PARAM.h"
+#include "sigmastudio system files/teh_DSP_IC_1_REG.h"
 
 #include <ArduinoJson.h>
 DynamicJsonDocument _jsonDoc(4096);
@@ -27,7 +27,37 @@ bool ADAU1701::init(uint8_t i2cAddr)
     //pinMode(21, INPUT_PULLUP);
     //pinMode(22, INPUT_PULLUP);
 
-    return checkConnection();
+    _initialized = true;
+    return connect();
+}
+
+bool ADAU1701::connect()
+{
+    if (!_initialized)
+    {
+        return false;
+    }
+    _connected = checkConnection();
+    return _connected;
+}
+
+void ADAU1701::disconnect()
+{
+    _connected = false;
+}
+
+bool ADAU1701::isConnected()
+{
+    return _connected;
+}
+
+String ADAU1701::isConnectedJSON()
+{
+    _jsonDoc["connected"] = isConnected();
+    String valuesStr;
+    serializeJson(_jsonDoc, valuesStr);
+    ADAU1701_PRINTLN(valuesStr);
+    return valuesStr;
 }
 
 bool ADAU1701::checkConnection()
@@ -40,14 +70,21 @@ bool ADAU1701::checkConnection()
     return false;
 }
 
-bool ADAU1701::loadValues()
+bool ADAU1701::readValues()
 {
-    if (!loadU32(MOD_MASTERVOLUME_ALG0_GAIN1940ALGNS1_ADDR, &_masterVolume1))
+    if (!_connected)
+    {
         return false;
-    if (!loadU32(MOD_MASTERVOLUME_ALG1_GAIN1940ALGNS2_ADDR, &_masterVolume2))
+    }
+    if (!loadU32(MOD_MASTERVOLUMEMAIN_ALG0_TARGET_ADDR, &_masterVolumeMain))
         return false;
-    if (!loadU32(MOD_SUBVOLUME_ALG0_GAIN1940ALGNS3_ADDR, &_subVolume1))
+    if (!loadU32(MOD_MASTERVOLUMESUB_ALG0_TARGET_ADDR, &_masterVolumeSub))
         return false;
+    if (!loadU32(MOD_SUBLEVEL_ALG0_TARGET_ADDR, &_subVolume))
+        return false;
+    if (!loadBool(MOD_INPUTMUTEADC_ALG0_MUTEONOFF_ADDR, &_inputMuteADC))
+        return false;
+    /*
     if (!loadU32(MOD_SUBVOLUME_ALG1_GAIN1940ALGNS4_ADDR, &_subVolume2))
         return false;
     if (!loadU32(MOD_MAINVOLUMEDAC_ALG0_GAIN1940ALGNS17_ADDR, &_mainVolumeDAC1))
@@ -58,19 +95,27 @@ bool ADAU1701::loadValues()
         return false;
     if (!loadU32(MOD_MAINVOLUMEI2S_ALG1_GAIN1940ALGNS16_ADDR, &_mainVolumeI2S2))
         return false;
+    */
     return true;
 }
 
 String ADAU1701::valuesJSON()
 {
-    _jsonDoc["masterVolume1"] = _masterVolume1;
-    _jsonDoc["masterVolume2"] = _masterVolume2;
-    _jsonDoc["subVolume1"] = _subVolume1;
-    _jsonDoc["subVolume2"] = _subVolume2;
-    _jsonDoc["mainVolumeDAC1"] = _mainVolumeDAC1;
-    _jsonDoc["mainVolumeDAC2"] = _mainVolumeDAC2;
-    _jsonDoc["mainVolumeI2S1"] = _mainVolumeI2S1;
-    _jsonDoc["mainVolumeI2S2"] = _mainVolumeI2S2;
+    _jsonDoc["connected"] = _connected;
+    if (_connected)
+    {
+        _jsonDoc["masterVolumeMain"] = _masterVolumeMain;
+        _jsonDoc["masterVolumeSub"] = _masterVolumeSub;
+        _jsonDoc["subVolume"] = _subVolume;
+        _jsonDoc["inputMuteADC"] = _inputMuteADC;
+        /*
+        _jsonDoc["subVolume2"] = _subVolume2;
+        _jsonDoc["mainVolumeDAC1"] = _mainVolumeDAC1;
+        _jsonDoc["mainVolumeDAC2"] = _mainVolumeDAC2;
+        _jsonDoc["mainVolumeI2S1"] = _mainVolumeI2S1;
+        _jsonDoc["mainVolumeI2S2"] = _mainVolumeI2S2;
+        */
+    }
     String valuesStr;
     serializeJson(_jsonDoc, valuesStr);
     ADAU1701_PRINTLN(valuesStr);
@@ -79,21 +124,29 @@ String ADAU1701::valuesJSON()
 
 bool ADAU1701::setMasterVolume(uint32_t value)
 {
-    safeloadWrite(0, MOD_MASTERVOLUME_ALG0_GAIN1940ALGNS1_ADDR, value);
-    safeloadWrite(1, MOD_MASTERVOLUME_ALG1_GAIN1940ALGNS2_ADDR, value);
+    if (!_connected)
+    {
+        return false;
+    }
+    safeloadWrite(0, MOD_MASTERVOLUMEMAIN_ALG0_TARGET_ADDR, value);
+    safeloadWrite(1, MOD_MASTERVOLUMESUB_ALG0_TARGET_ADDR, value);
     safeloadApply();
     return false;
 }
 
 bool ADAU1701::safeloadWrite(uint8_t safeloadNum, uint16_t addr, uint32_t value)
 {
+    if (!_connected)
+    {
+        return false;
+    }
     size_t nBytes;
     uint8_t status;
     // data
     Wire.beginTransmission(_i2cAddr);
     _buf[0] = 0x08;
     _buf[1] = 0x10 + safeloadNum;
-    _buf[2] = 0x00;
+    _buf[2] = 0x00; // TODO: writable, get from value somehow
     _buf[3] = (value >> 24) & 0xFF;
     _buf[4] = (value >> 16) & 0xFF;
     _buf[5] = (value >> 8) & 0xFF;
@@ -133,6 +186,10 @@ bool ADAU1701::safeloadWrite(uint8_t safeloadNum, uint16_t addr, uint32_t value)
 
 bool ADAU1701::safeloadApply()
 {
+    if (!_connected)
+    {
+        return false;
+    }
     size_t nBytes;
     uint8_t status;
     Wire.beginTransmission(_i2cAddr);
@@ -157,6 +214,10 @@ bool ADAU1701::safeloadApply()
 
 bool ADAU1701::readReg(uint16_t addr, uint8_t *buf, uint8_t len)
 {
+    if (!_connected)
+    {
+        return false;
+    }
     size_t nBytes;
     uint8_t status;
     Wire.beginTransmission(_i2cAddr);
@@ -208,7 +269,18 @@ bool ADAU1701::loadU32(uint16_t addr, uint32_t *value)
     return true;
 }
 
-void ADAU1701::i2cScan()
+bool ADAU1701::loadBool(uint16_t addr, bool *value)
+{
+    if (!readReg(addr, _buf, 4))
+    {
+        return false;
+    }
+    Serial.printf(" loadbool u32: %u\n", (_buf[0] << 24) | (_buf[1] << 16) | (_buf[2] << 8) | _buf[3]);
+    *value = _buf[3] && 1;
+    return true;
+}
+
+void i2cScan()
 {
     byte error, address;
     int nDevices;

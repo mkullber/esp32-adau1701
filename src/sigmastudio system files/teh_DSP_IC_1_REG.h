@@ -1,8 +1,8 @@
 /*
- * File:           C:\Users\user\Documents\Sigmastudio\pare rabl\APM2_PCUICtrl_IC_1_REG.h
+ * File:           Z:\Sigmastudio teh DSP\system files\teh_DSP_IC_1_REG.h
  *
- * Created:        Tuesday, October 19, 2021 5:56:12 PM
- * Description:    APM2_PCUICtrl:IC 1 control register definitions.
+ * Created:        Friday, October 22, 2021 8:33:43 AM
+ * Description:    teh_DSP:IC 1 control register definitions.
  *
  * This software is distributed in the hope that it will be useful,
  * but is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
@@ -16,8 +16,8 @@
  *
  * Copyright ©2021 Analog Devices, Inc. All rights reserved.
  */
-#ifndef __APM2_PCUICTRL_IC_1_REG_H__
-#define __APM2_PCUICTRL_IC_1_REG_H__
+#ifndef __TEH_DSP_IC_1_REG_H__
+#define __TEH_DSP_IC_1_REG_H__
 
 
 /* InterfaceRegister0  - Registers (IC 1) */
@@ -113,7 +113,7 @@
 /* MpCfg1  - Registers (IC 1) */
 #define REG_MPCFG1_IC_1_ADDR                      0x821
 #define REG_MPCFG1_IC_1_BYTE                      3
-#define REG_MPCFG1_IC_1_VALUE                     0xCCFF4C
+#define REG_MPCFG1_IC_1_VALUE                     0x44FF44
 
 /* AnalogPowerDownRegister  - Registers (IC 1) */
 #define REG_ANALOGPOWERDOWNREGISTER_IC_1_ADDR     0x822
@@ -370,7 +370,7 @@
 
 /* MpCfg1 (IC 1) */
 #define R18_MFSELECT6_IC_1                        0x4    /* 100b	[2:0] */
-#define R18_MFINVERT6_IC_1                        0x1    /* 1b	[3] */
+#define R18_MFINVERT6_IC_1                        0x0    /* 0b	[3] */
 #define R18_MFSELECT7_IC_1                        0x4    /* 100b	[6:4] */
 #define R18_MFINVERT7_IC_1                        0x0    /* 0b	[7] */
 #define R18_MFSELECT8_IC_1                        0x7    /* 111b	[10:8] */
@@ -378,9 +378,9 @@
 #define R18_MFSELECT9_IC_1                        0x7    /* 111b	[14:12] */
 #define R18_MFINVERT9_IC_1                        0x1    /* 1b	[15] */
 #define R18_MFSELECT10_IC_1                       0x4    /* 100b	[18:16] */
-#define R18_MFINVERT10_IC_1                       0x1    /* 1b	[19] */
+#define R18_MFINVERT10_IC_1                       0x0    /* 0b	[19] */
 #define R18_MFSELECT11_IC_1                       0x4    /* 100b	[22:20] */
-#define R18_MFINVERT11_IC_1                       0x1    /* 1b	[23] */
+#define R18_MFINVERT11_IC_1                       0x0    /* 0b	[23] */
 #define R18_MFSELECT6_IC_1_MASK                   0x7
 #define R18_MFSELECT6_IC_1_SHIFT                  0
 #define R18_MFINVERT6_IC_1_MASK                   0x8

@@ -38,15 +38,36 @@
                     </form>
                 </div>
 
+                <!-- TODO: connect/disconnect adau1701 i2c -->
+                <div class="row">
+                    <div class="col s12 m6 l6 btn_grid">
+                        <a class="btn waves-effect waves-light connection blue" name="action" data-mode="off">
+                            <span id="button_connect">
+                                Connect
+                                <i class="material-icons right">sync</i>
+                            </span>
+                            <span id="button_disconnect" class="hide">
+                                Disconnect
+                                <i class="material-icons right">sync_disabled</i>
+                            </span>
+                        </a>
+                        <a class="btn waves-effect waves-light mute blue" name="action" data-mode="off">
+                            <span id="button_muted">
+                                Mute
+                                <i class="material-icons right">volume_off</i>
+                            </span>
+                            <span id="button_unmuted" class="hide">
+                                Unmute
+                                <i class="material-icons right">volume_up</i>
+                            </span>
+                        </a>
+                    </div>
+                </div>
                 <div class="row">
                     <div class="col s12 m6 l6 btn_grid">
                         <a class="btn waves-effect waves-light nappi blue" name="action" data-mode="off"
                             >Nappi
                             <i class="material-icons right">done</i>
-                            <!--
-                            <i class="material-icons right">volume_up</i>
-                            <i class="material-icons right">volume_off</i>
-                            -->
                         </a>
                     </div>
                 </div>
@@ -64,6 +85,8 @@
                     var connection;
                     var ws_waiting = 0;
 
+                    var is_connected = false;
+
                     function init() {
                         connection = new WebSocket(ws_url);
 
@@ -74,6 +97,7 @@
 
                         connection.onerror = function (error) {
                             console.log("WebSocket Error " + error);
+                            disconnected();
                         };
 
                         connection.onmessage = function (e) {
@@ -88,22 +112,66 @@
                                 if (obj.volume !== undefined) {
                                     var volume = parseInt((obj.volume * 100) / 0x00800000);
                                     $("#masterVolume").val(volume);
-                                    $("#masterVolume").prop("disabled", false);
                                 }
                             }
                         };
 
+                        $.getJSON("http://" + host + "/is_connected", function (obj_conn) {
+                            if (obj_conn.connected === true) {
+                                getValues();
+                            }
+                        });
+                    }
+
+                    function getValues() {
                         $.getJSON("http://" + host + "/get_values", function (obj) {
                             console.log("get_values", obj);
                             var volume = parseInt((obj.masterVolume1 * 100) / 0x00800000);
                             $("#masterVolume").val(volume);
+                            connected();
                         });
+                    }
+
+                    function connect() {
+                        $.getJSON("http://" + host + "/connect", function (obj_conn) {
+                            if (obj_conn.connected === true) {
+                                getValues();
+                            }
+                        });
+                    }
+
+                    function connected() {
+                        is_connected = true;
+                        $("#button_connect").addClass("hide");
+                        $("#button_disconnect").removeClass("hide");
+                        $("#masterVolume").prop("disabled", false);
+                    }
+
+                    function disconnect() {
+                        is_connected = false;
+                        $("#button_connect").removeClass("hide");
+                        $("#button_disconnect").addClass("hide");
+                        disconnected();
+                        $.getJSON("http://" + host + "/disconnect", function (obj_conn) {});
+                    }
+
+                    function disconnected() {
+                        is_connected = false;
+                        $("#masterVolume").prop("disabled", true);
                     }
 
                     $("#pane1").on("input", ".update_masterVolume", function () {
                         var value = $("#masterVolume").val();
 
                         wsSendCommand("masterVolume: " + parseInt((value * 0x00800000) / 100));
+                    });
+
+                    $("#pane1").on("click", ".connection", function () {
+                        if (is_connected) {
+                            disconnect();
+                        } else {
+                            connect();
+                        }
                     });
 
                     $("#pane1").on("click", ".nappi", function () {

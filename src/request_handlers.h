@@ -11,13 +11,14 @@ void handleGetValues()
   // String valuesStr;
   // serializeJson(jsonDoc, valuesStr);
   // server.send(200, "application/json", valuesStr);
-  if (!adau.loadValues())
+  if (!adau.readValues())
     Serial.println("adau.loadValues() fail");
   server.send(200, "application/json", adau.valuesJSON());
 }
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
 {
+  bool status = false;
 
   switch (type)
   {
@@ -30,24 +31,26 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
     Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
 
     // send message to client
-    webSocket.sendTXT(num, "Connected");
+    webSocket.sendTXT(num, "WS connected");
   }
   break;
   case WStype_TEXT:
     Serial.printf("WS[%u] text: %s\n", num, payload);
 
-    if (strncmp((const char *)payload, "slider: ", 8) == 0)
+    if (strncmp((const char *)payload, "masterVolume: ", 14) == 0)
     {
       uint32_t value;
-      if (sscanf((const char *)(payload + 8), "%u", &value) == 1)
+      if (sscanf((const char *)(payload + 14), "%u", &value) == 1)
       {
         Serial.printf("slider value: %u -> %08x\n", value, value);
-        adau.setMasterVolume(value);
+        status = adau.setMasterVolume(value);
       }
     }
 
-    // send message to client
-    webSocket.sendTXT(num, "OK");
+    if (strncmp((const char *)payload, "heartbeat", 9) != 0)
+    {
+      webSocket.sendTXT(num, status ? "OK" : "FAIL");
+    }
 
     // send data to all connected clients
     // webSocket.broadcastTXT("message here");
