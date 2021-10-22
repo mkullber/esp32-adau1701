@@ -1,8 +1,12 @@
 #include <Arduino.h>
 #include "util.h"
 
+#include <HTTPClient.h>
+
 #include "ADAU1701.h"
 extern ADAU1701 adau;
+
+extern char switchAddressValue[STRING_LEN];
 
 void handleGetValues()
 {
@@ -14,6 +18,71 @@ void handleGetValues()
   if (!adau.readValues())
     Serial.println("adau.loadValues() fail");
   server.send(200, "application/json", adau.valuesJSON());
+}
+
+bool tasmotaSwitch(String state, bool *switchStatus)
+{
+  bool status = false;
+
+  String url = "http://" + String(switchAddressValue) + "/cm?cmnd=Power";
+  if (state != NULL && state.length() > 0)
+  {
+    url += "%20" + state;
+  }
+  HTTPClient http;
+  String result;
+  if (http.begin(url))
+  {
+    int httpStatus = http.GET();
+    status = httpStatus > 0;
+    if (httpStatus > 0)
+    {
+      result = http.getString();
+    }
+  }
+  http.end();
+
+  if (status && switchStatus != NULL)
+  {
+    DynamicJsonDocument doc(32);
+    DeserializationError error = deserializeJson(doc, result);
+    if (error)
+    {
+      status = false;
+    }
+    else
+    {
+      if (strcmp(doc["POWER"], "ON") == 0)
+      {
+        *switchStatus = true;
+      }
+      else
+      {
+        *switchStatus = false;
+      }
+    }
+  }
+
+  return status;
+}
+
+void handleSwitch()
+{
+  String stateStr = String();
+  if (server.hasArg("state"))
+  {
+    stateStr = server.arg("state");
+  }
+
+  bool state;
+  DynamicJsonDocument doc(32);
+  if (tasmotaSwitch(stateStr, &state))
+  {
+    doc["switch"] = state;
+  }
+  String resp;
+  serializeJson(doc, resp);
+  server.send(200, "text/plain", resp);
 }
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)

@@ -3,13 +3,25 @@
 #include <Arduino.h>
 
 #include <IotWebConf.h>
+#include <IotWebConfUsing.h>
 #include <IotWebConfESP32HTTPUpdateServer.h>
 
 const char thingName[] = "teh DSP";
 const char wifiInitialApPassword[] = "password";
-#define CONFIG_VERSION "dsp1"
+#define CONFIG_VERSION "dsp2"
 #define CONFIG_PIN 4
 #define STATUS_PIN 2
+
+DNSServer dnsServer;
+WebServer server(80);
+HTTPUpdateServer httpUpdater;
+WiFiClient net;
+
+#define STRING_LEN 64
+char switchAddressValue[STRING_LEN];
+
+IotWebConf iotWebConf(thingName, &dnsServer, &server, wifiInitialApPassword, CONFIG_VERSION);
+IotWebConfTextParameter switchAddressParam = IotWebConfTextParameter("Switch address", "switchAddress", switchAddressValue, STRING_LEN);
 
 void wifiConnected();
 bool isWifiConnected = false;
@@ -19,14 +31,6 @@ void handleRoot();
 
 void handleGetValues();
 void handleFileList();
-
-DNSServer dnsServer;
-WebServer server(80);
-HTTPUpdateServer httpUpdater;
-WiFiClient net;
-
-IotWebConf iotWebConf(thingName, &dnsServer, &server, wifiInitialApPassword, CONFIG_VERSION);
-// IotWebConfParameter mqttServerParam = IotWebConfParameter("MQTT server", "mqttServer", mqttServerValue, STRING_LEN);
 
 #include <SPIFFS.h>
 
@@ -63,7 +67,7 @@ void setup()
 
   iotWebConf.setStatusPin(STATUS_PIN);
   iotWebConf.setConfigPin(CONFIG_PIN);
-  // iotWebConf.addParameter(&mqttServerParam);
+  iotWebConf.addSystemParameter(&switchAddressParam);
   // iotWebConf.setConfigSavedCallback(&configSaved);
   iotWebConf.setFormValidator(&formValidator);
   iotWebConf.setWifiConnectionCallback(&wifiConnected);
@@ -112,6 +116,7 @@ void setup()
               server.send(200, "application/json", adau.isConnectedJSON());
             });
   server.on("/get_values", handleGetValues);
+  server.on("/switch", handleSwitch);
 
   server.on("/list", handleFileList);
   server.on("/edit", HTTP_PUT, handleFileCreate);
@@ -269,6 +274,7 @@ void handleSerial2Line()
         snprintf(buf, sizeof(buf) - 1, "{\"play\": %u}", play);
         webSocket.broadcastTXT(buf);
       }
+      // TODO: save play timestamp, turn switch on/off (off delay)
     }
   }
   else
