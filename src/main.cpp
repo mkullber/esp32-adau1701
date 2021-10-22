@@ -169,7 +169,11 @@ void setup()
 
     if (!adau.init(0x68))
     {
-        Serial.println("ADAU1701.init() fail");
+        delay(500);
+        if (!adau.connect())
+        {
+            Serial.println("ADAU1701.init() fail");
+        }
     }
     // adau.i2cScan();
 }

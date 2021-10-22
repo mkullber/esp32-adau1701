@@ -24,8 +24,7 @@ bool ADAU1701::init(uint8_t i2cAddr)
     _i2cAddr = i2cAddr >> 1;
     Wire.begin();
     Wire.setClock(400000);
-    //pinMode(21, INPUT_PULLUP);
-    //pinMode(22, INPUT_PULLUP);
+    delay(100);
 
     _initialized = true;
     return connect();
