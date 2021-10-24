@@ -82,6 +82,31 @@ void handleSwitch()
     }
     String resp;
     serializeJson(doc, resp);
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "text/plain", resp);
+}
+
+void handleConnection()
+{
+    String stateStr = String();
+    if (server.hasArg("state"))
+    {
+        stateStr = server.arg("state");
+        if (stateStr == "1")
+        {
+            adau.connect();
+        }
+        else
+        {
+            adau.disconnect();
+        }
+    }
+
+    DynamicJsonDocument doc(32);
+    doc["connected"] = adau.isConnected();
+    String resp;
+    serializeJson(doc, resp);
+    server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "text/plain", resp);
 }
 

@@ -65,6 +65,20 @@
                 </div>
                 <div class="row">
                     <div class="col s12 m6 l6 btn_grid">
+                        <a class="btn waves-effect waves-light power blue" name="action" data-mode="off">
+                            <span id="button_power_on">
+                                Power on
+                                <i class="material-icons right">flash_on</i>
+                            </span>
+                            <span id="button_power_off" class="hide">
+                                Power off
+                                <i class="material-icons right">flash_off</i>
+                            </span>
+                        </a>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col s12 m6 l6 btn_grid">
                         <a class="btn waves-effect waves-light nappi blue" name="action" data-mode="off"
                             >Nappi
                             <i class="material-icons right">done</i>
@@ -89,6 +103,7 @@
                     var ws_waiting = 0;
 
                     var is_connected = false;
+                    var power_status = false;
 
                     function init() {
                         connection = new WebSocket(ws_url);
@@ -119,9 +134,15 @@
                             }
                         };
 
-                        $.getJSON("http://" + host + "/is_connected", function (obj_conn) {
+                        $.getJSON("http://" + host + "/connection", function (obj_conn) {
                             if (obj_conn.connected === true) {
                                 getValues();
+                            }
+                        });
+
+                        $.getJSON("http://" + host + "/switch", function (obj) {
+                            if (obj.switch !== undefined && obj.switch !== null) {
+                                handlePower(obj.switch);
                             }
                         });
                     }
@@ -131,36 +152,45 @@
                             console.log("get_values", obj);
                             var volume = parseInt((obj.masterVolume1 * 100) / 0x00800000);
                             $("#masterVolume").val(volume);
-                            connected();
+                            handleConnection(true);
                         });
                     }
 
                     function connect() {
-                        $.getJSON("http://" + host + "/connect", function (obj_conn) {
+                        $.getJSON("http://" + host + "/connection?state=1", function (obj_conn) {
                             if (obj_conn.connected === true) {
                                 getValues();
                             }
                         });
                     }
 
-                    function connected() {
-                        is_connected = true;
-                        $("#button_connect").addClass("hide");
-                        $("#button_disconnect").removeClass("hide");
-                        $("#masterVolume").prop("disabled", false);
-                    }
-
-                    function disconnect() {
-                        is_connected = false;
-                        $("#button_connect").removeClass("hide");
-                        $("#button_disconnect").addClass("hide");
-                        disconnected();
-                        $.getJSON("http://" + host + "/disconnect", function (obj_conn) {});
+                    function handleConnection(state) {
+                        is_connected = state;
+                        if (state === true) {
+                            $("#button_connect").addClass("hide");
+                            $("#button_disconnect").removeClass("hide");
+                            $("#masterVolume").prop("disabled", false);
+                        } else {
+                            $("#button_connect").removeClass("hide");
+                            $("#button_disconnect").addClass("hide");
+                            disconnected();
+                        }
                     }
 
                     function disconnected() {
                         is_connected = false;
                         $("#masterVolume").prop("disabled", true);
+                    }
+
+                    function handlePower(state) {
+                        power_status = state;
+                        if (state === true) {
+                            $("#button_power_on").addClass("hide");
+                            $("#button_power_off").removeClass("hide");
+                        } else {
+                            $("#button_power_on").removeClass("hide");
+                            $("#button_power_off").addClass("hide");
+                        }
                     }
 
                     $("#pane1").on("input", ".update_masterVolume", function () {
@@ -170,11 +200,23 @@
                     });
 
                     $("#pane1").on("click", ".connection", function () {
-                        if (is_connected) {
-                            disconnect();
-                        } else {
-                            connect();
-                        }
+                        var stateStr = is_connected ? "0" : "1";
+                        $.getJSON("http://" + host + "/connection?state=" + stateStr, function (obj) {
+                            if (obj.connected !== undefined) {
+                                handleConnection(obj.connected);
+                            }
+                        });
+                    });
+
+                    $("#pane1").on("click", ".mute", function () {});
+
+                    $("#pane1").on("click", ".power", function () {
+                        var stateStr = power_status ? "0" : "1";
+                        $.getJSON("http://" + host + "/switch?state=" + stateStr, function (obj) {
+                            if (obj.switch !== undefined) {
+                                handlePower(obj.switch);
+                            }
+                        });
                     });
 
                     $("#pane1").on("click", ".nappi", function () {
