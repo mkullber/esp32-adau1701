@@ -1,8 +1,5 @@
 #include "ADAU1701.h"
 
-#include "sigmastudio system files/teh_DSP_IC_1_PARAM.h"
-#include "sigmastudio system files/teh_DSP_IC_1_REG.h"
-
 #include <ArduinoJson.h>
 DynamicJsonDocument _jsonDoc(4096);
 
@@ -79,22 +76,26 @@ bool ADAU1701::readValues()
         return false;
     if (!loadU32(MOD_MASTERVOLUMESUB_ALG0_TARGET_ADDR, &_masterVolumeSub))
         return false;
-    if (!loadU32(MOD_SUBLEVEL_ALG0_TARGET_ADDR, &_subVolume))
+    if (!loadU32(MOD_SUBLEVEL_ALG0_TARGET_ADDR, &_subLevel))
         return false;
-    if (!loadBool(MOD_INPUTMUTEADC_ALG0_MUTEONOFF_ADDR, &_inputMuteADC))
+    if (!loadMute(MOD_INPUTMUTEADC_ALG0_MUTEONOFF_ADDR, &_inputMuteADC))
         return false;
-    /*
-    if (!loadU32(MOD_SUBVOLUME_ALG1_GAIN1940ALGNS4_ADDR, &_subVolume2))
+    if (!loadMute(MOD_INPUTMUTEI2S_ALG0_MUTEONOFF_ADDR, &_inputMuteI2S))
         return false;
-    if (!loadU32(MOD_MAINVOLUMEDAC_ALG0_GAIN1940ALGNS17_ADDR, &_mainVolumeDAC1))
+    if (!loadMute(MOD_MAINMUTE_ALG0_MUTEONOFF_ADDR, &_mainMute))
         return false;
-    if (!loadU32(MOD_MAINVOLUMEDAC_ALG1_GAIN1940ALGNS18_ADDR, &_mainVolumeDAC2))
+    if (!loadMute(MOD_SUBMUTE_ALG0_MUTEONOFF_ADDR, &_subMute))
         return false;
-    if (!loadU32(MOD_MAINVOLUMEI2S_ALG0_GAIN1940ALGNS15_ADDR, &_mainVolumeI2S1))
+    if (!loadU32(MOD_MAINEQBYPASS_STEREOSWSLEW_ADDR, &_mainEqBypass))
         return false;
-    if (!loadU32(MOD_MAINVOLUMEI2S_ALG1_GAIN1940ALGNS16_ADDR, &_mainVolumeI2S2))
+    if (!loadU32(MOD_SUBEQBYPASS_MONOSWSLEW_ADDR, &_subEqBypass))
         return false;
-    */
+    if (!loadInv(MOD_MAININVL_EQ1940INVERT1GAIN_ADDR, &_mainInvL))
+        return false;
+    if (!loadInv(MOD_MAININVR_EQ1940INVERT2GAIN_ADDR, &_mainInvR))
+        return false;
+    if (!loadInv(MOD_SUBINV_EQ1940INVERT3GAIN_ADDR, &_subInv))
+        return false;
     return true;
 }
 
@@ -105,15 +106,16 @@ String ADAU1701::valuesJSON()
     {
         _jsonDoc["masterVolumeMain"] = _masterVolumeMain;
         _jsonDoc["masterVolumeSub"] = _masterVolumeSub;
-        _jsonDoc["subVolume"] = _subVolume;
+        _jsonDoc["subLevel"] = _subLevel;
         _jsonDoc["inputMuteADC"] = _inputMuteADC;
-        /*
-        _jsonDoc["subVolume2"] = _subVolume2;
-        _jsonDoc["mainVolumeDAC1"] = _mainVolumeDAC1;
-        _jsonDoc["mainVolumeDAC2"] = _mainVolumeDAC2;
-        _jsonDoc["mainVolumeI2S1"] = _mainVolumeI2S1;
-        _jsonDoc["mainVolumeI2S2"] = _mainVolumeI2S2;
-        */
+        _jsonDoc["inputMuteI2S"] = _inputMuteI2S;
+        _jsonDoc["mainMute"] = _mainMute;
+        _jsonDoc["subMute"] = _subMute;
+        _jsonDoc["mainEqBypass"] = _mainEqBypass;
+        _jsonDoc["subEqBypass"] = _subEqBypass;
+        _jsonDoc["mainInvL"] = _mainInvL;
+        _jsonDoc["mainInvR"] = _mainInvR;
+        _jsonDoc["subInv"] = _subInv;
     }
     String valuesStr;
     serializeJson(_jsonDoc, valuesStr);
@@ -127,9 +129,76 @@ bool ADAU1701::setMasterVolume(uint32_t value)
     {
         return false;
     }
-    safeloadWrite(0, MOD_MASTERVOLUMEMAIN_ALG0_TARGET_ADDR, value);
-    safeloadWrite(1, MOD_MASTERVOLUMESUB_ALG0_TARGET_ADDR, value);
-    safeloadApply();
+    if (safeloadWrite(0, MOD_MASTERVOLUMEMAIN_ALG0_TARGET_ADDR, value))
+    {
+        if (safeloadWrite(1, MOD_MASTERVOLUMESUB_ALG0_TARGET_ADDR, value))
+        {
+            if (safeloadApply())
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool ADAU1701::setSubLevel(uint32_t value)
+{
+    if (!_connected)
+    {
+        return false;
+    }
+    if (safeloadWrite(0, MOD_SUBLEVEL_ALG0_TARGET_ADDR, value))
+    {
+        if (safeloadApply())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool ADAU1701::setMute(uint16_t addr, bool value)
+{
+    if (!_connected)
+    {
+        return false;
+    }
+    uint32_t muteU32 = 0x00800000;
+    if (value)
+    {
+        muteU32 = 0x00000000;
+    }
+    if (safeloadWrite(0, addr, muteU32))
+    {
+
+        if (safeloadApply())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool ADAU1701::setInv(uint16_t addr, bool value)
+{
+    if (!_connected)
+    {
+        return false;
+    }
+    uint32_t invU32 = 0x00800000;
+    if (value)
+    {
+        invU32 = 0x0F800000;
+    }
+    if (safeloadWrite(0, addr, invU32))
+    {
+
+        if (safeloadApply())
+        {
+            return true;
+        }
+    }
     return false;
 }
 
@@ -268,14 +337,29 @@ bool ADAU1701::loadU32(uint16_t addr, uint32_t *value)
     return true;
 }
 
-bool ADAU1701::loadBool(uint16_t addr, bool *value)
+bool ADAU1701::loadMute(uint16_t addr, bool *value)
 {
+    // 0x00800000 = false
+    // 0x00000000 = true
     if (!readReg(addr, _buf, 4))
     {
         return false;
     }
-    Serial.printf(" loadbool u32: %u\n", (_buf[0] << 24) | (_buf[1] << 16) | (_buf[2] << 8) | _buf[3]);
-    *value = _buf[3] && 1;
+    uint32_t regValue = (_buf[0] << 24) | (_buf[1] << 16) | (_buf[2] << 8) | _buf[3];
+    *value = !(regValue && 0x00800000);
+    return true;
+}
+
+bool ADAU1701::loadInv(uint16_t addr, bool *value)
+{
+    // 0x00800000 = false
+    // 0x0F800000 = true
+    if (!readReg(addr, _buf, 4))
+    {
+        return false;
+    }
+    uint32_t regValue = (_buf[0] << 24) | (_buf[1] << 16) | (_buf[2] << 8) | _buf[3];
+    *value = (regValue & 0x0F000000) > 0;
     return true;
 }
 

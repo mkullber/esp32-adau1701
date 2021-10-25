@@ -113,6 +113,8 @@ void handleConnection()
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
 {
     bool status = false;
+    DynamicJsonDocument doc(1024);
+    DeserializationError error;
 
     switch (type)
     {
@@ -131,19 +133,40 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
     case WStype_TEXT:
         Serial.printf("WS[%u] text: %s\n", num, payload);
 
-        if (strncmp((const char *)payload, "masterVolume: ", 14) == 0)
+        error = deserializeJson(doc, payload);
+        if (!error)
         {
-            uint32_t value;
-            if (sscanf((const char *)(payload + 14), "%u", &value) == 1)
+            status = true;
+            if (doc.containsKey("masterVolume"))
             {
-                Serial.printf("slider value: %u -> %08x\n", value, value);
-                status = adau.setMasterVolume(value);
+                Serial.printf("masterVolume: %08x\n", doc["masterVolume"].as<uint32_t>());
+                status = adau.setMasterVolume(doc["masterVolume"].as<uint32_t>());
+            }
+            if (doc.containsKey("subLevel"))
+            {
+                Serial.printf("subLevel: %08x\n", doc["subLevel"].as<uint32_t>());
+                status = adau.setSubLevel(doc["subLevel"].as<uint32_t>());
+            }
+            if (doc.containsKey("mute"))
+            {
+                Serial.printf("mute: %u\n", doc["mute"].as<bool>());
+                status = adau.setMute(MOD_MAINMUTE_ALG0_MUTEONOFF_ADDR, doc["mute"].as<bool>());
+            }
+            if (doc.containsKey("subMute"))
+            {
+                Serial.printf("subMute: %u\n", doc["subMute"].as<bool>());
+                status = adau.setMute(MOD_SUBMUTE_ALG0_MUTEONOFF_ADDR, doc["subMute"].as<bool>());
             }
         }
 
-        if (strncmp((const char *)payload, "heartbeat", 9) != 0)
+        if (status && adau.readValues())
         {
-            webSocket.sendTXT(num, status ? "OK" : "FAIL");
+            String resp = adau.valuesJSON();
+            webSocket.sendTXT(num, resp);
+        }
+        else
+        {
+            webSocket.sendTXT(num, "FAIL");
         }
 
         // send data to all connected clients

@@ -4,6 +4,9 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+#include "sigmastudio system files/teh_DSP_IC_1_PARAM.h"
+#include "sigmastudio system files/teh_DSP_IC_1_REG.h"
+
 class ADAU1701
 {
 public:
@@ -20,6 +23,9 @@ public:
     bool safeloadApply();
 
     bool setMasterVolume(uint32_t value);
+    bool setSubLevel(uint32_t value);
+    bool setMute(uint16_t addr, bool value);
+    bool setInv(uint16_t addr, bool value);
 
     bool readValues();
     String valuesJSON();
@@ -31,26 +37,21 @@ private:
     bool _connected;
 
     bool loadU32(uint16_t addr, uint32_t *value);
-    bool loadBool(uint16_t addr, bool *value);
+    bool loadMute(uint16_t addr, bool *value);
+    bool loadInv(uint16_t addr, bool *value);
 
     uint32_t _masterVolumeMain;
     uint32_t _masterVolumeSub;
-    uint32_t _subVolume;
+    uint32_t _subLevel;
     bool _inputMuteADC;
     bool _inputMuteI2S;
     bool _mainMute;
     bool _subMute;
-    bool _mainBypass;
-    bool _subBypass;
+    uint32_t _mainEqBypass;
+    uint32_t _subEqBypass;
     bool _mainInvL;
     bool _mainInvR;
-    /*
-    uint32_t _subVolume2;
-    uint32_t _mainVolumeDAC1;
-    uint32_t _mainVolumeDAC2;
-    uint32_t _mainVolumeI2S1;
-    uint32_t _mainVolumeI2S2;
-    */
+    bool _subInv;
 };
 
 void i2cScan();

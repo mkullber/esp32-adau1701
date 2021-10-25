@@ -18,40 +18,17 @@
         <div class="container mc_pane" id="pane1">
             <div class="section">
                 <div class="row">
-                    <form class="col s12">
-                        <div class="row">
-                            <div class="input-field col s12">
-                                <label for="masterVolume">Master volume</label><br />
-                                <p class="range-field">
-                                    <input
-                                        type="range"
-                                        id="masterVolume"
-                                        min="0"
-                                        max="100"
-                                        value="0"
-                                        class="update_masterVolume"
-                                        disabled
-                                    />
-                                </p>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- TODO: connect/disconnect adau1701 i2c -->
-                <div class="row">
-                    <div class="col s12 m6 l6 btn_grid">
-                        <a class="btn waves-effect waves-light connection blue" name="action" data-mode="off">
-                            <span id="button_connect">
-                                Connect
-                                <i class="material-icons right">sync</i>
-                            </span>
-                            <span id="button_disconnect" class="hide">
-                                Disconnect
-                                <i class="material-icons right">sync_disabled</i>
-                            </span>
-                        </a>
-                        <a class="btn waves-effect waves-light mute blue" name="action" data-mode="off">
+                    <div class="input-field col s12">
+                        <label for="masterVolume">Master volume</label><br />
+                        <p class="range-field">
+                            <input type="range" id="masterVolume" min="0" max="100" value="0" disabled />
+                        </p>
+                        <a
+                            class="btn waves-effect waves-light mute blue disabled"
+                            id="mute"
+                            name="action"
+                            data-mode="off"
+                        >
                             <span id="button_muted">
                                 Mute
                                 <i class="material-icons right">volume_off</i>
@@ -63,9 +40,58 @@
                         </a>
                     </div>
                 </div>
+
+                <div class="row">
+                    <div class="input-field col s12">
+                        <label for="subLevel">Sub level</label><br />
+                        <p class="range-field">
+                            <input type="range" id="subLevel" min="0" max="100" value="0" disabled />
+                        </p>
+                        <a
+                            class="btn waves-effect waves-light subMute blue disabled"
+                            id="subMute"
+                            name="action"
+                            data-mode="off"
+                        >
+                            <span id="button_subMuted">
+                                Mute
+                                <i class="material-icons right">volume_off</i>
+                            </span>
+                            <span id="button_subUnmuted" class="hide">
+                                Unmute
+                                <i class="material-icons right">volume_up</i>
+                            </span>
+                        </a>
+                    </div>
+                </div>
+
                 <div class="row">
                     <div class="col s12 m6 l6 btn_grid">
-                        <a class="btn waves-effect waves-light power blue" name="action" data-mode="off">
+                        <a
+                            class="btn waves-effect waves-light connection blue"
+                            id="connection"
+                            name="action"
+                            data-mode="off"
+                        >
+                            <span id="button_connect">
+                                Connect
+                                <i class="material-icons right">sync</i>
+                            </span>
+                            <span id="button_disconnect" class="hide">
+                                Disconnect
+                                <i class="material-icons right">sync_disabled</i>
+                            </span>
+                        </a>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col s12 m6 l6 btn_grid">
+                        <a
+                            class="btn waves-effect waves-light power blue disabled"
+                            id="power"
+                            name="action"
+                            data-mode="off"
+                        >
                             <span id="button_power_on">
                                 Power on
                                 <i class="material-icons right">flash_on</i>
@@ -79,15 +105,9 @@
                 </div>
                 <div class="row">
                     <div class="col s12 m6 l6 btn_grid">
-                        <a class="btn waves-effect waves-light nappi blue" name="action" data-mode="off"
-                            >Nappi
-                            <i class="material-icons right">done</i>
-                        </a>
+                        <a href="config">Config</a>
                     </div>
                 </div>
-            </div>
-            <div class="section">
-                <a href="config">Config</a>
             </div>
         </div>
 
@@ -101,9 +121,6 @@
                     var ws_url = "ws://" + host + ":81";
                     var connection;
                     var ws_waiting = 0;
-
-                    var is_connected = false;
-                    var power_status = false;
 
                     function init() {
                         connection = new WebSocket(ws_url);
@@ -126,11 +143,7 @@
                                 obj = JSON.parse(e.data);
                             } catch (err) {}
                             if (obj) {
-                                // console.log(obj);
-                                if (obj.volume !== undefined) {
-                                    var volume = parseInt((obj.volume * 100) / 0x00800000);
-                                    $("#masterVolume").val(volume);
-                                }
+                                handleValues(obj);
                             }
                         };
 
@@ -142,7 +155,8 @@
 
                         $.getJSON("http://" + host + "/switch", function (obj) {
                             if (obj.switch !== undefined && obj.switch !== null) {
-                                handlePower(obj.switch);
+                                $("#power").removeClass("disabled");
+                                handlePowerButton(obj.switch);
                             }
                         });
                     }
@@ -150,10 +164,28 @@
                     function getValues() {
                         $.getJSON("http://" + host + "/get_values", function (obj) {
                             console.log("get_values", obj);
-                            var volume = parseInt((obj.masterVolume1 * 100) / 0x00800000);
-                            $("#masterVolume").val(volume);
+                            handleValues(obj);
+                            $("#connection").removeClass("disabled");
                             handleConnection(true);
                         });
+                    }
+
+                    function handleValues(values) {
+                        // TODO: disable slider values when dragging
+                        if (values.masterVolumeMain !== undefined) {
+                            var volume = parseInt((values.masterVolumeMain * 100) / 0x00800000);
+                            $("#masterVolume").val(volume);
+                        }
+                        if (values.subLevel !== undefined) {
+                            var subLevel = parseInt((values.subLevel * 100) / 0x00800000);
+                            $("#subLevel").val(subLevel);
+                        }
+                        if (values.mainMute !== undefined) {
+                            handleButton(values.mainMute, "button_muted", "button_unmuted");
+                        }
+                        if (values.subMute !== undefined) {
+                            handleButton(values.subMute, "button_subMuted", "button_subUnmuted");
+                        }
                     }
 
                     function connect() {
@@ -165,11 +197,13 @@
                     }
 
                     function handleConnection(state) {
-                        is_connected = state;
                         if (state === true) {
                             $("#button_connect").addClass("hide");
                             $("#button_disconnect").removeClass("hide");
                             $("#masterVolume").prop("disabled", false);
+                            $("#mute").removeClass("disabled");
+                            $("#subLevel").prop("disabled", false);
+                            $("#subMute").removeClass("disabled");
                         } else {
                             $("#button_connect").removeClass("hide");
                             $("#button_disconnect").addClass("hide");
@@ -178,12 +212,14 @@
                     }
 
                     function disconnected() {
-                        is_connected = false;
                         $("#masterVolume").prop("disabled", true);
+                        $("#mute").prop("disabled", true);
+                        $("#subLevel").prop("disabled", true);
+                        $("#subMute").prop("disabled", true);
+                        $("#power").addClass("disabled");
                     }
 
-                    function handlePower(state) {
-                        power_status = state;
+                    function handlePowerButton(state) {
                         if (state === true) {
                             $("#button_power_on").addClass("hide");
                             $("#button_power_off").removeClass("hide");
@@ -193,13 +229,31 @@
                         }
                     }
 
-                    $("#pane1").on("input", ".update_masterVolume", function () {
-                        var value = $("#masterVolume").val();
+                    function handleButton(state, onId, offId) {
+                        if (state === true) {
+                            $("#" + onId).addClass("hide");
+                            $("#" + offId).removeClass("hide");
+                        } else {
+                            $("#" + onId).removeClass("hide");
+                            $("#" + offId).addClass("hide");
+                        }
+                    }
 
-                        wsSendCommand("masterVolume: " + parseInt((value * 0x00800000) / 100));
+                    $("#pane1").on("input", "#masterVolume", function (e) {
+                        console.log(e.type);
+                        var value = $("#masterVolume").val();
+                        var cmd = { masterVolume: parseInt((value * 0x00800000) / 100) };
+                        wsSendCommand(JSON.stringify(cmd));
                     });
 
-                    $("#pane1").on("click", ".connection", function () {
+                    $("#pane1").on("input", "#subLevel", function () {
+                        var value = $("#subLevel").val();
+                        var cmd = { subLevel: parseInt((value * 0x00800000) / 100) };
+                        wsSendCommand(JSON.stringify(cmd));
+                    });
+
+                    $("#pane1").on("click", "#connection", function () {
+                        var is_connected = $("#button_connect").hasClass("hide");
                         var stateStr = is_connected ? "0" : "1";
                         $.getJSON("http://" + host + "/connection?state=" + stateStr, function (obj) {
                             if (obj.connected !== undefined) {
@@ -208,21 +262,27 @@
                         });
                     });
 
-                    $("#pane1").on("click", ".mute", function () {});
+                    $("#pane1").on("click", "#mute", function () {
+                        var mute_status = $("#button_unmuted").hasClass("hide");
+                        var cmd = { mute: mute_status };
+                        wsSendCommand(JSON.stringify(cmd));
+                    });
 
-                    $("#pane1").on("click", ".power", function () {
+                    $("#pane1").on("click", "#subMute", function () {
+                        var mute_status = $("#button_subUnmuted").hasClass("hide");
+                        var cmd = { subMute: mute_status };
+                        wsSendCommand(JSON.stringify(cmd));
+                    });
+
+                    $("#pane1").on("click", "#power", function () {
+                        var power_status = $("#button_power_on").hasClass("hide");
                         var stateStr = power_status ? "0" : "1";
                         $.getJSON("http://" + host + "/switch?state=" + stateStr, function (obj) {
                             if (obj.switch !== undefined) {
-                                handlePower(obj.switch);
+                                handlePowerButton(obj.switch);
+                                $("#power").removeClass("disabled");
                             }
                         });
-                    });
-
-                    $("#pane1").on("click", ".nappi", function () {
-                        console.log("nappi");
-
-                        wsSendCommand("nappi");
                     });
 
                     function wsSendCommand(cmd) {
@@ -238,7 +298,7 @@
                     function heartbeat() {
                         if (!connection) return;
                         if (connection.readyState !== 1) return;
-                        connection.send("heartbeat");
+                        connection.send(JSON.stringify({ heartbeat: 1 }));
                         setTimeout(heartbeat, 10000);
                     }
 
