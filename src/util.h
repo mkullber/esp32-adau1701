@@ -1,17 +1,14 @@
-#include <Arduino.h>
+#ifndef __UTIL_H__
+#define __UTIL_H__
 
-void hexdump(const void *mem, uint32_t len, uint8_t cols = 16)
-{
-    const uint8_t *src = (const uint8_t *)mem;
-    Serial.printf("\n[HEXDUMP] Address: 0x%08X len: 0x%X (%d)", (ptrdiff_t)src, len, len);
-    for (uint32_t i = 0; i < len; i++)
-    {
-        if (i % cols == 0)
-        {
-            Serial.printf("\n[0x%08X] 0x%08X: ", (ptrdiff_t)src, i);
-        }
-        Serial.printf("%02X ", *src);
-        src++;
-    }
-    Serial.printf("\n");
-}
+void debugPrint(const char *str);
+void debugPrint(String str);
+void debugPrintln(const char *str);
+void debugPrintln(String str);
+int debugPrintf(const char *format, ...);
+
+#define HEXDUMP_COLS 16
+
+void hexdump(void *mem, unsigned int len);
+
+#endif // __UTIL_H__

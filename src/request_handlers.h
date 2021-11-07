@@ -92,7 +92,7 @@ void handleConnection()
             {
                 if (!adau.init())
                 {
-                    Serial.println("ADAU1701.init() fail");
+                    debugPrintln("ADAU1701.init() fail");
                 }
             }
         }
@@ -119,19 +119,19 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
     switch (type)
     {
     case WStype_DISCONNECTED:
-        Serial.printf("[%u] Disconnected!\n", num);
+        debugPrintf("[%u] Disconnected!\n", num);
         break;
     case WStype_CONNECTED:
     {
         IPAddress ip = webSocket.remoteIP(num);
-        Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
+        debugPrintf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
 
         // send message to client
         webSocket.sendTXT(num, "WS connected");
     }
     break;
     case WStype_TEXT:
-        Serial.printf("WS[%u] text: %s\n", num, payload);
+        debugPrintf("WS[%u] text: %s\n", num, payload);
 
         error = deserializeJson(doc, payload);
         if (!error)
@@ -139,22 +139,22 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
             status = true;
             if (doc.containsKey("masterVolume"))
             {
-                Serial.printf("masterVolume: %08x\n", doc["masterVolume"].as<uint32_t>());
+                debugPrintf("masterVolume: %08x\n", doc["masterVolume"].as<uint32_t>());
                 status = adau.setMasterVolume(doc["masterVolume"].as<uint32_t>());
             }
             if (doc.containsKey("subLevel"))
             {
-                Serial.printf("subLevel: %08x\n", doc["subLevel"].as<uint32_t>());
+                debugPrintf("subLevel: %08x\n", doc["subLevel"].as<uint32_t>());
                 status = adau.setSubLevel(doc["subLevel"].as<uint32_t>());
             }
             if (doc.containsKey("mute"))
             {
-                Serial.printf("mute: %u\n", doc["mute"].as<bool>());
+                debugPrintf("mute: %u\n", doc["mute"].as<bool>());
                 status = adau.setMute(MOD_MAINMUTE_ALG0_MUTEONOFF_ADDR, doc["mute"].as<bool>());
             }
             if (doc.containsKey("subMute"))
             {
-                Serial.printf("subMute: %u\n", doc["subMute"].as<bool>());
+                debugPrintf("subMute: %u\n", doc["subMute"].as<bool>());
                 status = adau.setMute(MOD_SUBMUTE_ALG0_MUTEONOFF_ADDR, doc["subMute"].as<bool>());
             }
         }
@@ -173,19 +173,19 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
         // webSocket.broadcastTXT("message here");
         break;
     case WStype_BIN:
-        Serial.printf("WS[%u] binary (%u)\n", num, length);
+        debugPrintf("WS[%u] binary (%u)\n", num, length);
         hexdump(payload, length);
 
         // send message to client
         // webSocket.sendBIN(num, payload, length);
         break;
     case WStype_PING:
-        Serial.printf("WS[%u] ping (%u)\n", num, length);
+        debugPrintf("WS[%u] ping (%u)\n", num, length);
         hexdump(payload, length);
         break;
     case WStype_PONG:
     case WStype_ERROR:
-        Serial.println("WStype_ERROR");
+        debugPrintln("WStype_ERROR");
         break;
     case WStype_FRAGMENT_TEXT_START:
     case WStype_FRAGMENT_BIN_START:
@@ -225,7 +225,7 @@ void i2cScan(bool send = false)
     byte error, address;
     int nDevices;
     char sendBuf[40];
-    Serial.println("Scanning...");
+    debugPrintln("Scanning...");
     nDevices = 0;
     for (address = 1; address < 127; address++)
     {
@@ -234,7 +234,7 @@ void i2cScan(bool send = false)
         if (error == 0)
         {
             snprintf(sendBuf, sizeof(sendBuf) - 1, "I2C device found at address 0x%02X\n", address);
-            Serial.print(sendBuf);
+            debugPrint(sendBuf);
             if (send)
             {
                 server.sendContent(sendBuf);
@@ -244,7 +244,7 @@ void i2cScan(bool send = false)
         else if (error == 4)
         {
             snprintf(sendBuf, sizeof(sendBuf) - 1, "Unknow error at address 0x%02X\n", address);
-            Serial.print(sendBuf);
+            debugPrint(sendBuf);
             if (send)
             {
                 server.sendContent(sendBuf);
@@ -253,18 +253,18 @@ void i2cScan(bool send = false)
     }
     if (nDevices == 0)
     {
-        Serial.println("No I2C devices found\n");
+        debugPrintln("No I2C devices found\n");
     }
     else
     {
-        Serial.println("done\n");
+        debugPrintln("done\n");
     }
 }
 
 void handle_i2cScan()
 {
     server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-    Serial.println("Starting I2C scan");
+    debugPrintln("Starting I2C scan");
     server.send(200, "text/plain", "I2C scan\n");
     i2cScan(true);
     server.sendContent("");

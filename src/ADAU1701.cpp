@@ -1,12 +1,13 @@
 #include "ADAU1701.h"
+#include "util.h"
 
 #include <ArduinoJson.h>
 DynamicJsonDocument _jsonDoc(4096);
 
 #define ADAU1701_DEBUG
 #ifdef ADAU1701_DEBUG
-#define ADAU1701_PRINTF(...) Serial.printf(__VA_ARGS__)
-#define ADAU1701_PRINTLN(...) Serial.println(__VA_ARGS__)
+#define ADAU1701_PRINTF(...) debugPrintf(__VA_ARGS__)
+#define ADAU1701_PRINTLN(...) debugPrintln(__VA_ARGS__)
 #else
 #define ADAU1701_PRINTF(...)
 #define ADAU1701_PRINTLN(...)

@@ -15,7 +15,9 @@ const char wifiInitialApPassword[] = "password";
 DNSServer dnsServer;
 WebServer server(80);
 HTTPUpdateServer httpUpdater;
-WiFiClient net;
+
+WiFiServer tcpServer(23);
+WiFiClient remoteClient;
 
 #define STRING_LEN 64
 char switchAddressValue[STRING_LEN];
@@ -45,6 +47,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
 
 boolean needReset = false;
 
+#include "util.h"
 #include "request_handlers.h"
 #include "spiffs_webserver.h"
 
@@ -62,7 +65,7 @@ void setup()
 
     if (!SPIFFS.begin(true))
     {
-        Serial.println("An Error has occurred while mounting SPIFFS");
+        debugPrintln("An Error has occurred while mounting SPIFFS");
     }
 
     iotWebConf.setStatusPin(STATUS_PIN);
@@ -158,7 +161,7 @@ void setup()
         delay(500);
         if (!adau.connect())
         {
-            Serial.println("ADAU1701 init/connect fail");
+            debugPrintln("ADAU1701 init/connect fail");
         }
     }
 }
@@ -174,9 +177,14 @@ void loop()
 
     if (needReset)
     {
-        Serial.println("Rebooting after 1 second.");
+        debugPrintln("Rebooting after 1 second.");
         iotWebConf.delay(1000);
         ESP.restart();
+    }
+
+    if (tcpServer.hasClient())
+    {
+        remoteClient = tcpServer.available();
     }
 
     while (Serial2.available())
@@ -212,6 +220,8 @@ void wifiConnected()
 
     ArduinoOTA.begin();
 
+    tcpServer.begin();
+
     isWifiConnected = true;
 }
 
@@ -226,7 +236,7 @@ void handleSerial2Line()
             // macOS volume adjustment: sqrt( linear 0..1 )
             uint32_t volumePositive = volume + 24576;
             uint32_t volumeScaled = volumePositive * volumePositive / 72; // 24576^2 / 0x00800000 = 72
-            Serial.printf("Volume: %i -> %u (0x%08X)\n", volume, volumeScaled, volumeScaled);
+            debugPrintf("Volume: %i -> %u (0x%08X)\n", volume, volumeScaled, volumeScaled);
             adau.setMasterVolume(volumeScaled);
             if (isWifiConnected)
             {
@@ -242,7 +252,7 @@ void handleSerial2Line()
         if (sscanf(serial2Buf + 7, "%hhu", &muteNum) == 1)
         {
             mute = muteNum == 1;
-            Serial.printf("Mute: %i\n", mute);
+            debugPrintf("Mute: %i\n", mute);
             adau.setMute(MOD_MAINMUTE_ALG0_MUTEONOFF_ADDR, mute);
             adau.setMute(MOD_SUBMUTE_ALG0_MUTEONOFF_ADDR, mute);
             if (isWifiConnected)
@@ -259,7 +269,7 @@ void handleSerial2Line()
         if (sscanf(serial2Buf + 7, "%hhu", &playNum) == 1)
         {
             play = playNum == 1;
-            Serial.printf("Play: %i\n", play);
+            debugPrintf("Play: %i\n", play);
             if (isWifiConnected)
             {
                 snprintf(buf, sizeof(buf) - 1, "{\"play\": %u}", play);
@@ -270,20 +280,20 @@ void handleSerial2Line()
     }
     else
     {
-        Serial.print("Serial2: ");
-        Serial.println(serial2Buf);
+        debugPrint("Serial2: ");
+        debugPrintln(serial2Buf);
     }
 }
 
 void configSaved()
 {
-    Serial.println("Configuration was updated.");
+    debugPrintln("Configuration was updated.");
     needReset = true;
 }
 
 bool formValidator(iotwebconf::WebRequestWrapper *webRequestWrapper)
 {
-    Serial.println("Validating form.");
+    debugPrintln("Validating form.");
     boolean valid = true;
 
     // int l = webRequestWrapper->arg(stringParam.getId()).length();
