@@ -204,6 +204,7 @@
                             $("#mute").removeClass("disabled");
                             $("#subLevel").prop("disabled", false);
                             $("#subMute").removeClass("disabled");
+                            $("#power").removeClass("disabled");
                         } else {
                             $("#button_connect").removeClass("hide");
                             $("#button_disconnect").addClass("hide");
@@ -213,9 +214,9 @@
 
                     function disconnected() {
                         $("#masterVolume").prop("disabled", true);
-                        $("#mute").prop("disabled", true);
+                        $("#mute").addClass("disabled");
                         $("#subLevel").prop("disabled", true);
-                        $("#subMute").prop("disabled", true);
+                        $("#subMute").addClass("disabled");
                         $("#power").addClass("disabled");
                     }
 

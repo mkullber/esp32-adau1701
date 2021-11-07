@@ -11,12 +11,6 @@ extern char switchAddressValue[STRING_LEN];
 void handleGetValues()
 {
     server.sendHeader("Access-Control-Allow-Origin", "*");
-    // jsonDoc["value1"] = "foo";
-    // String valuesStr;
-    // serializeJson(jsonDoc, valuesStr);
-    // server.send(200, "application/json", valuesStr);
-    if (!adau.readValues())
-        Serial.println("adau.loadValues() fail");
     server.send(200, "application/json", adau.valuesJSON());
 }
 
@@ -94,7 +88,13 @@ void handleConnection()
         stateStr = server.arg("state");
         if (stateStr == "1")
         {
-            adau.connect();
+            if (!adau.isConnected())
+            {
+                if (!adau.init())
+                {
+                    Serial.println("ADAU1701.init() fail");
+                }
+            }
         }
         else
         {
@@ -159,7 +159,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
             }
         }
 
-        if (status && adau.readValues())
+        if (status)
         {
             String resp = adau.valuesJSON();
             webSocket.sendTXT(num, resp);
@@ -185,7 +185,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
         break;
     case WStype_PONG:
     case WStype_ERROR:
-        Serial.println("ws error");
+        Serial.println("WStype_ERROR");
         break;
     case WStype_FRAGMENT_TEXT_START:
     case WStype_FRAGMENT_BIN_START:
@@ -218,4 +218,54 @@ void handleMinimalUpload()
     </html>");
     server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "text/html", temp);
+}
+
+void i2cScan(bool send = false)
+{
+    byte error, address;
+    int nDevices;
+    char sendBuf[40];
+    Serial.println("Scanning...");
+    nDevices = 0;
+    for (address = 1; address < 127; address++)
+    {
+        Wire.beginTransmission(address);
+        error = Wire.endTransmission();
+        if (error == 0)
+        {
+            snprintf(sendBuf, sizeof(sendBuf) - 1, "I2C device found at address 0x%02X\n", address);
+            Serial.print(sendBuf);
+            if (send)
+            {
+                server.sendContent(sendBuf);
+            }
+            nDevices++;
+        }
+        else if (error == 4)
+        {
+            snprintf(sendBuf, sizeof(sendBuf) - 1, "Unknow error at address 0x%02X\n", address);
+            Serial.print(sendBuf);
+            if (send)
+            {
+                server.sendContent(sendBuf);
+            }
+        }
+    }
+    if (nDevices == 0)
+    {
+        Serial.println("No I2C devices found\n");
+    }
+    else
+    {
+        Serial.println("done\n");
+    }
+}
+
+void handle_i2cScan()
+{
+    server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    Serial.println("Starting I2C scan");
+    server.send(200, "text/plain", "I2C scan\n");
+    i2cScan(true);
+    server.sendContent("");
 }

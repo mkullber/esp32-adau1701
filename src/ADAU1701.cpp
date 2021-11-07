@@ -27,6 +27,11 @@ bool ADAU1701::init(uint8_t i2cAddr)
     return connect();
 }
 
+bool ADAU1701::isInitialized()
+{
+    return _initialized;
+}
+
 bool ADAU1701::connect()
 {
     if (!_initialized)
@@ -34,7 +39,11 @@ bool ADAU1701::connect()
         return false;
     }
     _connected = checkConnection();
-    return _connected;
+    if (!_connected)
+    {
+        return false;
+    }
+    return readValues();
 }
 
 void ADAU1701::disconnect()
@@ -67,6 +76,26 @@ bool ADAU1701::checkConnection()
 }
 
 bool ADAU1701::readValues()
+{
+    if (!writeCoreRegister(0))
+    {
+        return false;
+    }
+    bool status = _readValues();
+    if (!writeCoreRegister(R13_REGISTER_ZERO_IC_1_MASK | R13_MUTE_DAC_IC_1_MASK | R13_MUTE_ADC_IC_1_MASK))
+    {
+        return false;
+    }
+    return status;
+}
+
+/*
+Note that this mode can be used during live program execution,
+but because there is no handshaking between the core and the control port,
+the parameter RAM is unavailable to the DSP core during control writes,
+resulting in clicks and pops in the audio stream.
+ */
+bool ADAU1701::_readValues()
 {
     if (!_connected)
     {
@@ -129,9 +158,11 @@ bool ADAU1701::setMasterVolume(uint32_t value)
     {
         return false;
     }
-    if (safeloadWrite(0, MOD_MASTERVOLUMEMAIN_ALG0_TARGET_ADDR, value))
+    _masterVolumeMain = value;
+    _masterVolumeSub = value;
+    if (safeloadWrite(0, MOD_MASTERVOLUMEMAIN_ALG0_TARGET_ADDR, _masterVolumeMain))
     {
-        if (safeloadWrite(1, MOD_MASTERVOLUMESUB_ALG0_TARGET_ADDR, value))
+        if (safeloadWrite(1, MOD_MASTERVOLUMESUB_ALG0_TARGET_ADDR, _masterVolumeSub))
         {
             if (safeloadApply())
             {
@@ -148,7 +179,8 @@ bool ADAU1701::setSubLevel(uint32_t value)
     {
         return false;
     }
-    if (safeloadWrite(0, MOD_SUBLEVEL_ALG0_TARGET_ADDR, value))
+    _subLevel = value;
+    if (safeloadWrite(0, MOD_SUBLEVEL_ALG0_TARGET_ADDR, _subLevel))
     {
         if (safeloadApply())
         {
@@ -164,6 +196,18 @@ bool ADAU1701::setMute(uint16_t addr, bool value)
     {
         return false;
     }
+    if (addr == MOD_MAINMUTE_ALG0_MUTEONOFF_ADDR)
+    {
+        _mainMute = value;
+    }
+    else if (addr == MOD_SUBMUTE_ALG0_MUTEONOFF_ADDR)
+    {
+        _subMute = value;
+    }
+    else
+    {
+        return false;
+    }
     uint32_t muteU32 = 0x00800000;
     if (value)
     {
@@ -171,7 +215,6 @@ bool ADAU1701::setMute(uint16_t addr, bool value)
     }
     if (safeloadWrite(0, addr, muteU32))
     {
-
         if (safeloadApply())
         {
             return true;
@@ -186,6 +229,7 @@ bool ADAU1701::setInv(uint16_t addr, bool value)
     {
         return false;
     }
+    // TODO: set _*Inv, see setMute()
     uint32_t invU32 = 0x00800000;
     if (value)
     {
@@ -252,7 +296,7 @@ bool ADAU1701::safeloadWrite(uint8_t safeloadNum, uint16_t addr, uint32_t value)
     return true;
 }
 
-bool ADAU1701::safeloadApply()
+bool ADAU1701::writeCoreRegister(uint16_t value)
 {
     if (!_connected)
     {
@@ -263,8 +307,8 @@ bool ADAU1701::safeloadApply()
     Wire.beginTransmission(_i2cAddr);
     _buf[0] = (REG_COREREGISTER_IC_1_ADDR >> 8) & 0xFF;
     _buf[1] = REG_COREREGISTER_IC_1_ADDR & 0xFF;
-    _buf[2] = 0x00;
-    _buf[3] = R13_REGISTER_ZERO_IC_1_MASK | R13_MUTE_DAC_IC_1_MASK | R13_MUTE_ADC_IC_1_MASK | R13_SAFELOAD_IC_1_MASK;
+    _buf[2] = (value >> 8) & 0xFF;
+    _buf[3] = value & 0xFF;
     nBytes = Wire.write(_buf, 4);
     if (nBytes != 4)
     {
@@ -280,6 +324,17 @@ bool ADAU1701::safeloadApply()
     return true;
 }
 
+bool ADAU1701::safeloadApply()
+{
+    return writeCoreRegister(R13_REGISTER_ZERO_IC_1_MASK | R13_MUTE_DAC_IC_1_MASK | R13_MUTE_ADC_IC_1_MASK | R13_SAFELOAD_IC_1_MASK);
+}
+
+/*
+Note that this mode can be used during live program execution,
+but because there is no handshaking between the core and the control port,
+the parameter RAM is unavailable to the DSP core during control writes,
+resulting in clicks and pops in the audio stream.
+ */
 bool ADAU1701::readReg(uint16_t addr, uint8_t *buf, uint8_t len)
 {
     if (!_connected)
@@ -301,27 +356,20 @@ bool ADAU1701::readReg(uint16_t addr, uint8_t *buf, uint8_t len)
     status = Wire.endTransmission(false);
     if (status != 0)
     {
-        ADAU1701_PRINTF("endTr1(): %u\n", status);
+        ADAU1701_PRINTF("endTr(): %u\n", status);
         return false;
     }
 
-    Wire.beginTransmission(_i2cAddr);
     nBytes = Wire.requestFrom(_i2cAddr, len);
     if (nBytes != len)
     {
-        ADAU1701_PRINTF("reqFrom(): %u\n", nBytes);
+        ADAU1701_PRINTF("reqFrom(): %u != %u\n", nBytes, len);
         return false;
     }
     nBytes = Wire.readBytes(buf, len);
     if (nBytes != len)
     {
-        ADAU1701_PRINTF("readBytes(): %u\n", nBytes);
-        return false;
-    }
-    status = Wire.endTransmission();
-    if (status != 0)
-    {
-        ADAU1701_PRINTF("endTr2(): %u\n", status);
+        ADAU1701_PRINTF("readBytes(): %u != %u\n", nBytes, len);
         return false;
     }
     return true;
@@ -361,44 +409,4 @@ bool ADAU1701::loadInv(uint16_t addr, bool *value)
     uint32_t regValue = (_buf[0] << 24) | (_buf[1] << 16) | (_buf[2] << 8) | _buf[3];
     *value = (regValue & 0x0F000000) > 0;
     return true;
-}
-
-void i2cScan()
-{
-    byte error, address;
-    int nDevices;
-    Serial.println("Scanning...");
-    nDevices = 0;
-    for (address = 1; address < 127; address++)
-    {
-        Wire.beginTransmission(address);
-        error = Wire.endTransmission();
-        if (error == 0)
-        {
-            Serial.print("I2C device found at address 0x");
-            if (address < 16)
-            {
-                Serial.print("0");
-            }
-            Serial.println(address, HEX);
-            nDevices++;
-        }
-        else if (error == 4)
-        {
-            Serial.print("Unknow error at address 0x");
-            if (address < 16)
-            {
-                Serial.print("0");
-            }
-            Serial.println(address, HEX);
-        }
-    }
-    if (nDevices == 0)
-    {
-        Serial.println("No I2C devices found\n");
-    }
-    else
-    {
-        Serial.println("done\n");
-    }
 }

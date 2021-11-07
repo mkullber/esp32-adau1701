@@ -13,6 +13,7 @@ public:
     ADAU1701();
 
     bool init(uint8_t i2cAddr = 0x68);
+    bool isInitialized();
     bool connect();
     void disconnect();
     bool isConnected();
@@ -20,6 +21,7 @@ public:
     bool checkConnection();
     bool readReg(uint16_t addr, uint8_t *buf, uint8_t len);
     bool safeloadWrite(uint8_t safeloadNum, uint16_t addr, uint32_t value);
+    bool writeCoreRegister(uint16_t value);
     bool safeloadApply();
 
     bool setMasterVolume(uint32_t value);
@@ -39,6 +41,7 @@ private:
     bool loadU32(uint16_t addr, uint32_t *value);
     bool loadMute(uint16_t addr, bool *value);
     bool loadInv(uint16_t addr, bool *value);
+    bool _readValues();
 
     uint32_t _masterVolumeMain;
     uint32_t _masterVolumeSub;
@@ -53,7 +56,5 @@ private:
     bool _mainInvR;
     bool _subInv;
 };
-
-void i2cScan();
 
 #endif

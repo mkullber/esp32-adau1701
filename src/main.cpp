@@ -98,6 +98,8 @@ void setup()
                               iotWebConf.handleNotFound();
                       });
 
+    server.on("/i2c_scan", handle_i2cScan);
+
     server.on("/connection", handleConnection);
     server.on("/get_values", handleGetValues);
     server.on("/switch", handleSwitch);
@@ -151,15 +153,14 @@ void setup()
                          Serial.println("End Failed");
                  });
 
-    if (!adau.init(0x68))
+    if (!adau.init())
     {
         delay(500);
         if (!adau.connect())
         {
-            Serial.println("ADAU1701.init() fail");
+            Serial.println("ADAU1701 init/connect fail");
         }
     }
-    // adau.i2cScan();
 }
 
 void loop()
@@ -242,6 +243,8 @@ void handleSerial2Line()
         {
             mute = muteNum == 1;
             Serial.printf("Mute: %i\n", mute);
+            adau.setMute(MOD_MAINMUTE_ALG0_MUTEONOFF_ADDR, mute);
+            adau.setMute(MOD_SUBMUTE_ALG0_MUTEONOFF_ADDR, mute);
             if (isWifiConnected)
             {
                 snprintf(buf, sizeof(buf) - 1, "{\"mute\": %u}", mute);
