@@ -7,6 +7,22 @@
             href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"
         />
 
+        <style>
+            .main-loader {
+                z-index: 9999;
+                top: 0px;
+                left: 0px;
+                width: 100%;
+                height: 100%;
+                position: fixed;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background-color: white;
+                background-color: rgba(255, 255, 255, 0.5);
+            }
+        </style>
+
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta charset="utf-8" />
@@ -110,202 +126,216 @@
                 </div>
             </div>
         </div>
+        <div class="main-loader" id="main-loader">
+            <div class="preloader-wrapper big active" id="spinner">
+                <div class="spinner-layer spinner-blue-only">
+                    <div class="circle-clipper left">
+                        <div class="circle"></div>
+                    </div>
+                    <div class="gap-patch">
+                        <div class="circle"></div>
+                    </div>
+                    <div class="circle-clipper right">
+                        <div class="circle"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
 
-        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
-        <script type="text/javascript">
-            (function ($) {
-                $(function () {
-                    //var host = window.location.hostname;
-                    var host = "192.168.8.187";
-                    var ws_url = "ws://" + host + ":81";
-                    var connection;
-                    var ws_waiting = 0;
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+    <script type="text/javascript">
+        (function ($) {
+            $(function () {
+                var host = window.location.hostname;
+                // for develpoing index.html without uploading it to esp32
+                if (window.location.protocol == "file:") {
+                    var host = "192.168.8.95";
+                }
+                var ws_url = "ws://" + host + ":81";
+                var connection;
+                var ws_waiting = 0;
 
-                    function init() {
-                        connection = new WebSocket(ws_url);
+                function init() {
+                    connection = new WebSocket(ws_url);
 
-                        connection.onopen = function () {
-                            console.log("WebSocket Open");
-                            heartbeat();
-                        };
+                    connection.onopen = function () {
+                        console.log("WebSocket Open");
+                        heartbeat();
+                    };
 
-                        connection.onerror = function (error) {
-                            console.log("WebSocket Error " + error);
-                            disconnected();
-                        };
+                    connection.onerror = function (error) {
+                        console.log("WebSocket Error " + error);
+                        disconnected();
+                    };
 
-                        connection.onmessage = function (e) {
-                            console.log("WebSocket from server: " + e.data);
-                            ws_waiting = 0;
-                            var obj = null;
-                            try {
-                                obj = JSON.parse(e.data);
-                            } catch (err) {}
-                            if (obj) {
-                                handleValues(obj);
-                            }
-                        };
+                    connection.onmessage = function (e) {
+                        console.log("WebSocket from server: " + e.data);
+                        ws_waiting = 0;
+                        var obj = null;
+                        try {
+                            obj = JSON.parse(e.data);
+                        } catch (err) {}
+                        if (obj) {
+                            handleValues(obj);
+                        }
+                    };
 
-                        $.getJSON("http://" + host + "/connection", function (obj_conn) {
-                            if (obj_conn.connected === true) {
-                                getValues();
-                            }
-                        });
+                    connect();
+                }
 
-                        $.getJSON("http://" + host + "/switch", function (obj) {
-                            if (obj.switch !== undefined && obj.switch !== null) {
-                                $("#power").removeClass("disabled");
-                                handlePowerButton(obj.switch);
-                            }
-                        });
-                    }
-
-                    function getValues() {
-                        $.getJSON("http://" + host + "/get_values", function (obj) {
-                            console.log("get_values", obj);
+                function getValues() {
+                    $.getJSON("http://" + host + "/get_values", function (obj) {
+                        console.log("get_values", obj);
+                        if (obj !== null) {
                             handleValues(obj);
                             $("#connection").removeClass("disabled");
                             handleConnection(true);
-                        });
-                    }
+                        }
+                    });
+                }
 
-                    function handleValues(values) {
-                        // TODO: disable slider values when dragging
-                        if (values.masterVolumeMain !== undefined) {
-                            var volume = parseInt((values.masterVolumeMain * 100) / 0x00800000);
-                            $("#masterVolume").val(volume);
-                        }
-                        if (values.subLevel !== undefined) {
-                            var subLevel = parseInt((values.subLevel * 100) / 0x00800000);
-                            $("#subLevel").val(subLevel);
-                        }
-                        if (values.mainMute !== undefined) {
-                            handleButton(values.mainMute, "button_muted", "button_unmuted");
-                        }
-                        if (values.subMute !== undefined) {
-                            handleButton(values.subMute, "button_subMuted", "button_subUnmuted");
-                        }
-                    }
-
-                    function connect() {
-                        $.getJSON("http://" + host + "/connection?state=1", function (obj_conn) {
-                            if (obj_conn.connected === true) {
-                                getValues();
-                            }
-                        });
-                    }
-
-                    function handleConnection(state) {
-                        if (state === true) {
-                            $("#button_connect").addClass("hide");
-                            $("#button_disconnect").removeClass("hide");
-                            $("#masterVolume").prop("disabled", false);
-                            $("#mute").removeClass("disabled");
-                            $("#subLevel").prop("disabled", false);
-                            $("#subMute").removeClass("disabled");
+                function getSwitchState() {
+                    $.getJSON("http://" + host + "/switch", function (obj) {
+                        if (obj !== null && obj.switch !== undefined && obj.switch !== null) {
                             $("#power").removeClass("disabled");
-                        } else {
-                            $("#button_connect").removeClass("hide");
-                            $("#button_disconnect").addClass("hide");
-                            disconnected();
+                            handleButton(obj.switch, "button_power_on", "button_power_off");
                         }
-                    }
+                    });
+                }
 
-                    function disconnected() {
-                        $("#masterVolume").prop("disabled", true);
-                        $("#mute").addClass("disabled");
-                        $("#subLevel").prop("disabled", true);
-                        $("#subMute").addClass("disabled");
-                        $("#power").addClass("disabled");
+                function handleValues(values) {
+                    $("#spinner").removeClass("active");
+                    $("#main-loader").addClass("hide");
+                    // TODO: disable slider values when dragging
+                    if (values.masterVolumeMain !== undefined) {
+                        var volume = parseInt((values.masterVolumeMain * 100) / 0x00800000);
+                        $("#masterVolume").val(volume);
                     }
+                    if (values.subLevel !== undefined) {
+                        var subLevel = parseInt((values.subLevel * 100) / 0x00800000);
+                        $("#subLevel").val(subLevel);
+                    }
+                    if (values.mainMute !== undefined) {
+                        handleButton(values.mainMute, "button_muted", "button_unmuted");
+                    }
+                    if (values.subMute !== undefined) {
+                        handleButton(values.subMute, "button_subMuted", "button_subUnmuted");
+                    }
+                }
 
-                    function handlePowerButton(state) {
-                        if (state === true) {
-                            $("#button_power_on").addClass("hide");
-                            $("#button_power_off").removeClass("hide");
-                        } else {
-                            $("#button_power_on").removeClass("hide");
-                            $("#button_power_off").addClass("hide");
+                function connect() {
+                    $("#spinner").addClass("active");
+                    $("#main-loader").removeClass("hide");
+                    $.getJSON("http://" + host + "/connection?state=1", function (obj_conn) {
+                        if (obj_conn !== null && obj_conn.connected === true) {
+                            getValues();
                         }
+                        getSwitchState();
+                    });
+                }
+
+                function handleConnection(state) {
+                    if (state === true) {
+                        $("#button_connect").addClass("hide");
+                        $("#button_disconnect").removeClass("hide");
+                        $("#masterVolume").prop("disabled", false);
+                        $("#mute").removeClass("disabled");
+                        $("#subLevel").prop("disabled", false);
+                        $("#subMute").removeClass("disabled");
+                        $("#power").removeClass("disabled");
+                    } else {
+                        $("#button_connect").removeClass("hide");
+                        $("#button_disconnect").addClass("hide");
+                        disconnected();
                     }
+                }
 
-                    function handleButton(state, onId, offId) {
-                        if (state === true) {
-                            $("#" + onId).addClass("hide");
-                            $("#" + offId).removeClass("hide");
-                        } else {
-                            $("#" + onId).removeClass("hide");
-                            $("#" + offId).addClass("hide");
-                        }
+                function disconnected() {
+                    $("#masterVolume").prop("disabled", true);
+                    $("#mute").addClass("disabled");
+                    $("#subLevel").prop("disabled", true);
+                    $("#subMute").addClass("disabled");
+                    $("#power").addClass("disabled");
+                }
+
+                function handleButton(state, onId, offId) {
+                    if (state === true) {
+                        $("#" + onId).addClass("hide");
+                        $("#" + offId).removeClass("hide");
+                    } else {
+                        $("#" + onId).removeClass("hide");
+                        $("#" + offId).addClass("hide");
                     }
+                }
 
-                    $("#pane1").on("input", "#masterVolume", function (e) {
-                        console.log(e.type);
-                        var value = $("#masterVolume").val();
-                        var cmd = { masterVolume: parseInt((value * 0x00800000) / 100) };
-                        wsSendCommand(JSON.stringify(cmd));
-                    });
-
-                    $("#pane1").on("input", "#subLevel", function () {
-                        var value = $("#subLevel").val();
-                        var cmd = { subLevel: parseInt((value * 0x00800000) / 100) };
-                        wsSendCommand(JSON.stringify(cmd));
-                    });
-
-                    $("#pane1").on("click", "#connection", function () {
-                        var is_connected = $("#button_connect").hasClass("hide");
-                        var stateStr = is_connected ? "0" : "1";
-                        $.getJSON("http://" + host + "/connection?state=" + stateStr, function (obj) {
-                            if (obj.connected !== undefined) {
-                                handleConnection(obj.connected);
-                            }
-                        });
-                    });
-
-                    $("#pane1").on("click", "#mute", function () {
-                        var mute_status = $("#button_unmuted").hasClass("hide");
-                        var cmd = { mute: mute_status };
-                        wsSendCommand(JSON.stringify(cmd));
-                    });
-
-                    $("#pane1").on("click", "#subMute", function () {
-                        var mute_status = $("#button_subUnmuted").hasClass("hide");
-                        var cmd = { subMute: mute_status };
-                        wsSendCommand(JSON.stringify(cmd));
-                    });
-
-                    $("#pane1").on("click", "#power", function () {
-                        var power_status = $("#button_power_on").hasClass("hide");
-                        var stateStr = power_status ? "0" : "1";
-                        $.getJSON("http://" + host + "/switch?state=" + stateStr, function (obj) {
-                            if (obj.switch !== undefined) {
-                                handlePowerButton(obj.switch);
-                                $("#power").removeClass("disabled");
-                            }
-                        });
-                    });
-
-                    function wsSendCommand(cmd) {
-                        console.log("Send WebSocket command:", cmd);
-                        if (ws_waiting == 0) {
-                            connection.send(cmd);
-                            ws_waiting++;
-                        } else {
-                            console.log("++++++++ WS call waiting, skip");
-                        }
-                    }
-
-                    function heartbeat() {
-                        if (!connection) return;
-                        if (connection.readyState !== 1) return;
-                        connection.send(JSON.stringify({ heartbeat: 1 }));
-                        setTimeout(heartbeat, 10000);
-                    }
-
-                    init();
+                $("#pane1").on("input", "#masterVolume", function (e) {
+                    console.log(e.type);
+                    var value = $("#masterVolume").val();
+                    var cmd = { masterVolume: parseInt((value * 0x00800000) / 100) };
+                    wsSendCommand(JSON.stringify(cmd));
                 });
-            })(jQuery);
-        </script>
-    </body>
+
+                $("#pane1").on("input", "#subLevel", function () {
+                    var value = $("#subLevel").val();
+                    var cmd = { subLevel: parseInt((value * 0x00800000) / 100) };
+                    wsSendCommand(JSON.stringify(cmd));
+                });
+
+                $("#pane1").on("click", "#connection", function () {
+                    var is_connected = $("#button_connect").hasClass("hide");
+                    var stateStr = is_connected ? "0" : "1";
+                    $.getJSON("http://" + host + "/connection?state=" + stateStr, function (obj) {
+                        if (obj !== null && obj.connected !== undefined) {
+                            handleConnection(obj.connected);
+                            getValues();
+                        }
+                    });
+                });
+
+                $("#pane1").on("click", "#mute", function () {
+                    var mute_status = $("#button_unmuted").hasClass("hide");
+                    var cmd = { mute: mute_status };
+                    wsSendCommand(JSON.stringify(cmd));
+                });
+
+                $("#pane1").on("click", "#subMute", function () {
+                    var mute_status = $("#button_subUnmuted").hasClass("hide");
+                    var cmd = { subMute: mute_status };
+                    wsSendCommand(JSON.stringify(cmd));
+                });
+
+                $("#pane1").on("click", "#power", function () {
+                    var power_status = $("#button_power_on").hasClass("hide");
+                    var stateStr = power_status ? "0" : "1";
+                    $.getJSON("http://" + host + "/switch?state=" + stateStr, function (obj) {
+                        if (obj !== null && obj.switch !== undefined) {
+                            handleButton(obj.switch, "button_power_on", "button_power_off");
+                            $("#power").removeClass("disabled");
+                        }
+                    });
+                });
+
+                function wsSendCommand(cmd) {
+                    console.log("Send WebSocket command:", cmd);
+                    if (ws_waiting == 0) {
+                        connection.send(cmd);
+                        ws_waiting++;
+                    } else {
+                        console.log("++++++++ WS call waiting, skip");
+                    }
+                }
+
+                function heartbeat() {
+                    if (!connection) return;
+                    if (connection.readyState !== 1) return;
+                    connection.send(JSON.stringify({ heartbeat: 1 }));
+                    setTimeout(heartbeat, 10000);
+                }
+
+                init();
+            });
+        })(jQuery);
+    </script>
 </html>

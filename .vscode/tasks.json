@@ -6,7 +6,7 @@
         {
             "label": "Upload (HTTP OTA)",
             "type": "shell",
-            "command": "curl -v -F \"update=@.pio/build/esp32dev/firmware.bin\" http://admin:password@192.168.8.187/firmware",
+            "command": "curl -v -F \"update=@.pio/build/esp32dev/firmware.bin\" http://admin:password@192.168.8.95/firmware",
             "problemMatcher": []
         }
     ]

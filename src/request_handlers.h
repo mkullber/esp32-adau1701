@@ -27,6 +27,8 @@ bool tasmotaSwitch(String state, bool *switchStatus)
     String result;
     if (http.begin(url))
     {
+        http.setConnectTimeout(2000);
+        http.setTimeout(4000);
         int httpStatus = http.GET();
         status = httpStatus > 0;
         if (httpStatus > 0)
